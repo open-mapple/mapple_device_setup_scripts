@@ -32,6 +32,7 @@ class Ctx:
             else:
                 p = fdt
             self.live.add_file(p)
+        self.check_vendor()
         self.soc, self.soc_src, self.soc_also = self.find_soc(soc)
         self.project = project or guess_project(self.dtsdir, self.sym)
         self.tree = self.load_tree()
@@ -56,6 +57,30 @@ class Ctx:
 
     def soc_name(self):
         return self.soc
+
+    def check_vendor(self):
+        """Stop on any sign that the trees are not MediaTek's; this tool reads nothing else."""
+        qcom = re.compile(r"(?:sm|sdm|msm|apq|qcs)\w*|lito|kona|atoll|bengal|holi|trinket|lahaina|taro|kalama|waipio|parrot", re.I)
+        ev = []
+        for n, v, src in self.assigns:
+            if n == "TARGET_BOARD_PLATFORM" and not re.search(r"mt\d{4}", v, re.I) and "$(" not in v:
+                ev.append(("Qualcomm" if qcom.fullmatch(v) else "not MediaTek", "TARGET_BOARD_PLATFORM := %s (%s)" % (v, src)))
+        for f in self.kcfgs:
+            for i, l in enumerate(open(f, errors="replace"), 1):
+                if l.strip() == "CONFIG_ARCH_QCOM=y":
+                    ev.append(("Qualcomm", "kernel config CONFIG_ARCH_QCOM (%s:%d)" % (self.rel(f), i)))
+        if self.live:
+            comp = self.live.root.strs("compatible")
+            if comp and not any(c.lower().startswith("mediatek,") for c in comp):
+                q = any(c.lower().startswith("qcom,") for c in comp)
+                ev.append(("Qualcomm" if q else "not MediaTek", "--fdt root compatible %s" % ", ".join(comp)))
+        if not ev:
+            return
+        qc = any(v == "Qualcomm" for v, _ in ev)
+        raise SystemExit("mapple-bringup: these trees are %s:\n%s\nThis tool only handles MediaTek phones, so nothing was written.%s" % (
+            "Qualcomm's" if qc else "not MediaTek's", "\n".join("  " + e for _, e in ev),
+            "\nFor SM7150 phones see the Qualcomm line: xnu_kernel_qcom_common and the device repos xnu_device_xiaomi_sweet and "
+            "xnu_device_google_sunfish." if qc else ""))
 
     def find_soc(self, given):
         """(soc, where it was read, where else it was read). Never a default: sources that disagree, or none, stop the run."""
