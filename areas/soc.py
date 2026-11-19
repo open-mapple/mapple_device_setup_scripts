@@ -7,7 +7,7 @@ A_CORES = {"arm,cortex-a55": "a55", "arm,cortex-a75": "a75", "arm,cortex-a76": "
 
 def run(c):
     t = c.tree
-    c.fact("soc", "soc", c.soc_name(), "TARGET_BOARD_PLATFORM / the kernel's dts")
+    c.fact("soc", "soc", c.soc_name(), c.soc_src)
     model = t.root.str("model")
     if model:
         c.fact("soc", "model", model, "dts: /model")

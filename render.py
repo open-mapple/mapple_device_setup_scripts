@@ -182,7 +182,7 @@ def brief(c, rows):
          "nothing here has run on the phone. Each fact names where it was read (`file:line` of the tree, or the defconfig).", "",
          "Inputs: Android device tree, kernel tree (project `%s`, defconfig `%s`)%s%s." % (
              c.project, os.path.basename(c.defconfig_path or "?"), ", the phone's own tree" if c.live else ", no phone tree",
-             ", its GPT" if c.gpt else ", no GPT"), "", "## Facts", ""]
+             ", its GPT" if c.gpt else ", no GPT"), "", "SoC: %s." % c.soc_line(), "", "## Facts", ""]
     for area, d in c.facts.items():
         L.append("### " + area)
         for k, f in d.items():

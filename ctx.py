@@ -34,6 +34,7 @@ class Ctx:
             self.live.add_file(p)
         self.check_vendor()
         self.soc, self.soc_src, self.soc_also = self.find_soc(soc)
+        print("SoC: %s" % self.soc_line())
         self.project = project or guess_project(self.dtsdir, self.sym)
         self.tree = self.load_tree()
         self.gpt = read_gpt(gpt) if gpt else None
@@ -125,6 +126,9 @@ class Ctx:
             raise SystemExit("mapple-bringup: the sources disagree about the SoC:\n%s\nPass --soc mtNNNN to choose."
                              % "\n".join("  %s: %s" % f for f in found))
         return names[0], found[0][1], [w for _, w in found[1:]]
+
+    def soc_line(self):
+        return "%s, from %s%s" % (self.soc, self.soc_src, "; also " + "; ".join(self.soc_also) if self.soc_also else "")
 
     def rel(self, path):
         return os.path.relpath(path, self.kernel)
