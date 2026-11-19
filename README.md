@@ -14,12 +14,26 @@ python3 bringup.py spaced \
     --android-kernel android_kernel_realme_mt6781 \
     --fdt live.dtb --gpt gpt-sdc.bin \
     --ours kernel/mediatek/mt6781 --ours mapple/loader \
-    --title "realme 8i" --maintainer you --out out
+    --project 21690 --title "realme 8i" --maintainer you --out out
 ```
 
 Needs Python 3 and `dtc` (only to read the phone's own tree). `--fdt` is `/sys/firmware/fdt` and `--gpt` the first blocks of the
 disk, both with serials and GUIDs masked; without them the memory map, the framebuffer and the partition room are gaps, and the
 brief says which command pulls them.
+
+MediaTek only. If the trees are Qualcomm's or any other vendor's (a `TARGET_BOARD_PLATFORM` such as `sm6150`, `CONFIG_ARCH_QCOM`,
+a `qcom,` root compatible in `--fdt`), the run stops and writes nothing; SM7150 phones belong to the Qualcomm line
+(`xnu_kernel_qcom_common`, `xnu_device_xiaomi_sweet`, `xnu_device_google_sunfish`).
+
+The script stops rather than guesses. It prints the SoC and where it read it at the start of a run, and writes both in `BRIEF.md`.
+It looks, in this order, at `TARGET_BOARD_PLATFORM` (the device tree's makefiles and the `include` / `inherit-product` lines into
+the common trees beside it, such as `android_device_<vendor>_<soc>-common`), the kernel config (`CONFIG_MACH_MT*`, else
+`CONFIG_MTK_PLATFORM`), the root compatible of `--fdt`, and the SoC dts if the kernel tree has only one. Sources that disagree are
+listed and the run stops; so does a run where none answers. `--soc mt6768` settles either.
+
+The board's dts overlay is the file `--overlay` names, or the ones whose names contain `--project`; with neither, the one overlay the
+kernel config builds (`CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES`). If it builds several, they are listed and the run stops:
+pick with `--overlay FILE` (repeatable) or `--project NAME`.
 
 | out | what |
 | --- | --- |
@@ -38,5 +52,10 @@ a probe. These are listed, not guessed.
 `proof/spaced.sh` regenerates the realme 8i from its trees and a masked copy of its own tree and GPT, and compares with the real
 device repository, the ADT builder's constants and the notes of the bring-up (`proof/check.py` holds each expected value and where
 it is stated). It prints what matches, what differs and why, and what the sources cannot give.
+
+`proof/merlinx.sh` reads the Redmi Note 9 (MT6768) from LineageOS's public trees (`android_device_xiaomi_merlinx`, `..._mt6768-common`
+beside it, `android_kernel_xiaomi_mt6768`) and checks the SoC is found in the common tree, nothing of mt6781 appears, and that missing
+or disagreeing sources stop the run. `proof/qcom.sh` feeds it LineageOS's Redmi Note 10 Pro (sweet, sm6150) trees and checks that it
+stops and writes nothing.
 
 Licence: MIT.
