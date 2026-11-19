@@ -3,7 +3,7 @@ import dts
 
 
 def run(c):
-    dsi = c.compat("mt6781-dsi") or c.compat("-dsi")
+    dsi = c.compat(c.soc_name() + "-dsi") or c.compat("-dsi")
     panels = []
     if dsi:
         for k in dsi.kids:

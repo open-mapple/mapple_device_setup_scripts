@@ -18,6 +18,7 @@ def main(argv=None):
     p.add_argument("name", help="the device's codename (spaced)")
     p.add_argument("--android-device", required=True, help="the Android device tree (BoardConfig.mk, rootdir/, proprietary-files.txt)")
     p.add_argument("--android-kernel", required=True, help="the Android kernel tree (arch/arm64/boot/dts, configs)")
+    p.add_argument("--soc", help="the MediaTek SoC (mt6768); without it the trees must name it, and the run stops if they do not")
     p.add_argument("--project", help="the vendor's project number the dts overlay is named for (default: from the defconfig)")
     p.add_argument("--fdt", help="the phone's own device tree (/sys/firmware/fdt), identifiers masked")
     p.add_argument("--gpt", help="the phone's GPT (first 34 blocks of the disk), identifiers masked")
@@ -26,7 +27,7 @@ def main(argv=None):
     p.add_argument("--maintainer", default="unmaintained")
     p.add_argument("--out", default="out")
     a = p.parse_args(argv)
-    c = Ctx(a.name, a.android_device, a.android_kernel, a.project, a.fdt, a.gpt, a.ours, None, a.title, a.maintainer)
+    c = Ctx(a.name, a.android_device, a.android_kernel, a.project, a.fdt, a.gpt, a.ours, None, a.title, a.maintainer, soc=a.soc)
     for area in AREAS:
         area.run(c)
     render.write(c, a.out)
