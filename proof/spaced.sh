@@ -7,11 +7,11 @@ dev=$1 ker=$2 fdt=$3 gpt=$4 out=$5
 shift 5
 ours=""
 for d in "$@"; do ours="$ours --ours $d"; done
-python3 -I "$here/bringup.py" spaced --android-device "$dev" --android-kernel "$ker" --title "realme 8i" --maintainer DrtSinX98 \
+python3 -I "$here/bringup.py" spaced --android-device "$dev" --android-kernel "$ker" --title "realme 8i" --maintainer DrtSinX98 --project 21690 \
 	--fdt "$fdt" --gpt "$gpt" $ours --out "$out"
 python3 -I "$here/proof/check.py" "$out"
 # the same inputs give the same bytes
-python3 -I "$here/bringup.py" spaced --android-device "$dev" --android-kernel "$ker" --title "realme 8i" --maintainer DrtSinX98 \
+python3 -I "$here/bringup.py" spaced --android-device "$dev" --android-kernel "$ker" --title "realme 8i" --maintainer DrtSinX98 --project 21690 \
 	--fdt "$fdt" --gpt "$gpt" $ours --out "$out.again" >/dev/null
 diff -r "$out" "$out.again" && echo "deterministic: two runs, no difference"
 rm -rf "$out.again"

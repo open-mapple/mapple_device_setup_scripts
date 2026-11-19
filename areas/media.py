@@ -34,7 +34,7 @@ def run(c):
             mine = [s for s in sens if s.endswith("_" + str(c.project))]
         else:
             mine = sens
-        c.fact("camera", "sensors", mine or sens, "defconfig CUSTOM_KERNEL_IMGSENSOR (project %s)" % c.project,
+        c.fact("camera", "sensors", mine or sens, "defconfig CUSTOM_KERNEL_IMGSENSOR (project %s)" % (c.project or "not given"),
                [s.split("_")[0] for s in (mine or sens)][:6])
     cam = c.compat("camisp") or c.compat("seninf_top") or c.compat("seninf")
     if cam:

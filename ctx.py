@@ -10,7 +10,7 @@ import dts
 
 class Ctx:
     def __init__(self, name, android_dir, kernel_dir, project=None, fdt=None, gpt=None, ours=(), soc_layer=None,
-                 title=None, maintainer="unmaintained", soc=None):
+                 title=None, maintainer="unmaintained", soc=None, overlays=()):
         self.name, self.android, self.kernel = name, android_dir, kernel_dir
         self.ours, self.soc_layer, self.maintainer = list(ours), soc_layer, maintainer
         self.facts, self.gaps, self.probes = {}, [], []
@@ -35,7 +35,7 @@ class Ctx:
         self.check_vendor()
         self.soc, self.soc_src, self.soc_also = self.find_soc(soc)
         print("SoC: %s" % self.soc_line())
-        self.project = project or guess_project(self.dtsdir, self.sym)
+        self.project, self.overlays = project, list(overlays)
         self.tree = self.load_tree()
         self.gpt = read_gpt(gpt) if gpt else None
         self.title = title or "%s %s" % (self.board.get("PRODUCT_BRAND", ""), self.board.get("PRODUCT_MODEL", name))
@@ -50,11 +50,42 @@ class Ctx:
                 order.append(f)
         plat = [f for f in order if re.fullmatch(soc + r"\.dts", f)]
         over = sorted(f for f in order if re.match(r"k\w*" + soc[2:] + r"\w*\.dts$", f))
-        proj = sorted(f for f in order if f.startswith("oplus") and str(self.project) in f and soc[2:] in f)
+        proj = self.pick_overlays(order, plat)
         for f in plat + over + proj:
             t.add_file(os.path.join(self.dtsdir, f), incs, self.sym)
-        self.dts_files = plat + over + proj
+        self.dts_files, self.overlay_files = plat + over + proj, proj
         return t
+
+    def pick_overlays(self, files, plat):
+        """The board's dts overlays: --overlay, else the files --project names, else the one overlay the kernel config builds.
+        Several candidates and no choice stop the run."""
+        cand = [os.path.basename(n) + ".dts" for n in self.sym.get("CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES", "").split()]
+        cand = [f for f in dict.fromkeys(cand) if f in files and f not in plat]
+        if self.overlays:
+            out = []
+            for o in self.overlays:
+                f = next((x for x in (os.path.basename(o), os.path.basename(o) + ".dts") if x in files), None)
+                if not f:
+                    raise SystemExit("mapple-bringup: --overlay %s: no such file in %s%s" % (o, self.dtsdir, self.overlay_help(cand)))
+                out.append(f)
+            how = "--overlay"
+        elif self.project:
+            out = [f for f in cand if self.project in f] or sorted(f for f in files if self.project in f and f not in plat)
+            if not out:
+                raise SystemExit("mapple-bringup: --project %s names no dts file in %s%s" % (self.project, self.dtsdir, self.overlay_help(cand)))
+            how = "--project " + self.project
+        elif len(cand) > 1:
+            raise SystemExit("mapple-bringup: the kernel config builds several dts overlays and nothing says which is this phone's%s"
+                             % self.overlay_help(cand))
+        else:
+            out, how = cand, "the only overlay the kernel config builds"
+        self.overlay_how = how
+        print("Overlay: %s (%s)" % (", ".join(out) or "none, the SoC dts alone", how if out else "no overlay in the kernel config"))
+        return out
+
+    def overlay_help(self, cand):
+        return ("\nCandidates (CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES):\n%s\n" % "\n".join("  " + f for f in cand) if cand else
+                "\nThe kernel config names no overlay; look in the dts directory.\n") + "Pass --overlay FILE or --project NAME."
 
     def soc_name(self):
         return self.soc
@@ -221,11 +252,6 @@ def find_kconfigs(kernel, name, assigns):
     if os.path.exists(os.path.join(d, name + "_defconfig")):
         return [os.path.join(d, name + "_defconfig")]
     return glob.glob(os.path.join(d, "*" + name + "*"))[:1]
-
-
-def guess_project(dtsdir, sym):
-    m = re.findall(r"_(\d{5})\b", sym.get("CONFIG_CUSTOM_KERNEL_IMGSENSOR", ""))
-    return m[0] if m else None
 
 
 def read_gpt(path):
