@@ -37,6 +37,13 @@ python3 -I "$here/bringup.py" merlinx --android-device "$tmp/alone/device_merlin
 grep -q "Pass --soc" "$tmp/err" && [ ! -e "$tmp/o2" ] || fail "no stop, or output written"
 echo "match                no source names the SoC: stops, asks for --soc, writes nothing"
 
+# a firmware dump's folder instead of the source trees
+mkdir "$tmp/dump" && touch "$tmp/dump/boot.img" "$tmp/dump/vendor.img"
+python3 -I "$here/bringup.py" x --android-device "$tmp/dump" --android-kernel "$tmp/dump" --out "$tmp/o5" >"$tmp/err" 2>&1 && fail "went on with a firmware dump"
+grep -q "firmware dump" "$tmp/err" && grep -q "^mapple-bringup: --android-device" "$tmp/err" && grep -q "^--android-kernel" "$tmp/err" && [ ! -e "$tmp/o5" ] ||
+	fail "no clear stop for a firmware dump, or output written"
+echo "match                a firmware dump's folder: stops naming both options, writes nothing"
+
 # a live tree that says another SoC
 printf '/dts-v1/;\n/ { compatible = "mediatek,mt6785"; };\n' > "$tmp/live.dts"
 run --fdt "$tmp/live.dts" --out "$tmp/o3" >"$tmp/err" 2>&1 && fail "went on with disagreeing sources"

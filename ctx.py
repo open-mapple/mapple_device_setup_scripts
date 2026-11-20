@@ -11,6 +11,7 @@ import dts
 class Ctx:
     def __init__(self, name, android_dir, kernel_dir, project=None, fdt=None, gpt=None, ours=(), soc_layer=None,
                  title=None, maintainer="unmaintained", soc=None, overlays=()):
+        check_inputs(android_dir, kernel_dir)
         self.name, self.android, self.kernel = name, android_dir, kernel_dir
         self.ours, self.soc_layer, self.maintainer = list(ours), soc_layer, maintainer
         self.facts, self.gaps, self.probes = {}, [], []
@@ -194,6 +195,19 @@ def read_mk(root):
             if m:
                 out[m[1]] = (out[m[1]] + " " + m[2]).strip() if m[1] in out and "+=" in line else m[2]
     return out
+
+
+def check_inputs(android, kernel):
+    """Stop, naming the option, when a tree is not source: a firmware dump, a wrong folder."""
+    bad = []
+    if not glob.glob(os.path.join(android, "BoardConfig*.mk")) + glob.glob(os.path.join(android, "device.mk")):
+        bad.append("--android-device %s: this doesn't look like an Android device tree source (no BoardConfig.mk or device.mk). "
+                   "Did you pass a firmware dump? Pass the android_device_<brand>_<codename> repository." % android)
+    if not os.path.isdir(os.path.join(kernel, "arch/arm64/boot/dts")):
+        bad.append("--android-kernel %s: this doesn't look like an Android kernel source (no arch/arm64/boot/dts). "
+                   "Did you pass a firmware dump? Pass the vendor's kernel source for the phone." % kernel)
+    if bad:
+        raise SystemExit("mapple-bringup: " + "\n".join(bad))
 
 
 MK_ASSIGN = re.compile(r"\s*([A-Z0-9_]+)\s*(?::=|\+=|\?=|=)\s*(.*?)\s*(?:#.*)?$")
