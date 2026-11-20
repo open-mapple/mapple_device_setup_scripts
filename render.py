@@ -144,7 +144,8 @@ def adt_py(c):
           "ECID = None", "PRODUCT_NAME = %r" % c.title,
           "# How the panel is shown: 'sRGB' or 'P3'. Nothing in the trees says.", "DISPLAY_GAMUT = ''",
           "# serial-number is a placeholder the shim overwrites at each boot with the boot loader's serial."
-          + ("" if model else " model and regulatory: the phone's model number (RMX3151): not found."),
+          + (" model and regulatory: the tree's PRODUCT_MODEL, which may be a sibling model's; check ro.product.model on your own phone."
+             if model else " model and regulatory: the phone's model number (ro.product.model): not found."),
           "ABOUT = dict(serial='MAPPLE0000000000', model=%r, region='', regulatory=%r)" % (model, model), "", "",
           "def devices(a, ph, phandle, gic_ph, ecid, flags):",
           "    # /arm-io devices, one node per chip the drivers should find (keypad, PMIC, touch, ...): none yet. BRIEF.md lists the",
