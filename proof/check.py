@@ -136,6 +136,10 @@ C = [
     ("boot image keys left empty", "no tree states them: each is empty under its comment",
      [(k, conf_val("bootimg_" + k), ("# bootimg_" + k + ":") in conf) for k in ("os_version", "os_patch_level", "kernel")],
      [(k, "", True) for k in ("os_version", "os_patch_level", "kernel")], "eq"),
+    ("device.conf gpu", "real device.conf at 2470895 (gpu mali): the dts has a Mali node", conf_val("gpu"), "mali", "eq"),
+    ("device.conf root_size, payload_max", "real device.conf at 2470895 has 16g and 0x3fe0000: no tree states them; empty under a comment",
+     [(k, conf_val(k), ("# %s:" % k) in conf) for k in ("root_size", "payload_max")],
+     [(k, "", True) for k in ("root_size", "payload_max")], "eq"),
     ("adt.py RAM", "real adt.py RAM", devpy.RAM, (0xc0000000, 0x13e000000 - 0xc0000000), "eq"),
     ("adt.py FB", "real adt.py FB", devpy.FB, dict(base=0x771b0000, width=1080, height=2412, stride=4320, size=0x9f0000), "eq"),
     ("adt.py PRODUCT_NAME", "real adt.py", devpy.PRODUCT_NAME, "realme 8i", "eq"),
@@ -163,7 +167,8 @@ NOT_DERIVABLE = [
     ("every cmdline knob but cpus/LUN/root (mp_gpu, mp_therm, ...)", "run-proven choices in device.conf, not facts of the trees"),
     ("device.conf status states (works/partial)", "only a run says that; the script writes missing"),
     ("maintainer", "an input (--maintainer)"),
-    ("ECID, DISPLAY_GAMUT, the /arm-io nodes, the boot image's Android version and patch level", "empty in adt.py and device.conf under a comment; the porter fills them"),
+    ("ECID, DISPLAY_GAMUT, the /arm-io nodes, root_size, payload_max, the boot image's Android version and patch level",
+     "empty in adt.py and device.conf under a comment; the porter fills them"),
 ]
 
 

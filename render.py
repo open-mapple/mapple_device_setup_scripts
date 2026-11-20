@@ -175,6 +175,9 @@ def device_conf(c):
            "device %s" % name, "\ttitle\t%s (%s)" % (c.title, name), "\tvendor\t%s" % vendor,
            "\tsoc\t%s" % c.soc_name()] + boot_keys(c) + ["\tdefconfig\t%s_defconfig" % name, "\tfirmware\tpull-firmware.sh",
            "\tmaintainer\t%s" % c.maintainer, "\tcmdline\t%s" % " ".join(args), "\tadt\t%s" % " ".join(adt)]
+    out += key("gpu", "mali" if get(c, "gpu", "mali") else "none", "")
+    out += key("payload_max", None, "payload_max: the largest payload the loader takes, in hex (0x3fe0000 on the realme 8i): from your loader build; no tree states it")
+    out += key("root_size", None, "root_size: the size of the root image mka builds (16g on the realme 8i): your choice; no tree states it")
     for st, areas in STATUS:
         notes = []
         for a in areas:

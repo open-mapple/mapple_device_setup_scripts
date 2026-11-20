@@ -17,7 +17,7 @@ grep -q "^Overlay: merlin.dts" "$tmp/log" || fail "overlay"
 grep -q "^SoC: mt6768, from TARGET_BOARD_PLATFORM" "$tmp/out/BRIEF.md" || fail "SoC missing from BRIEF.md"
 grep -q "$(printf '\tsoc\tmt6768$')" "$tmp/out/merlinx/device.conf" || fail "device.conf soc"
 grep -q "6x a55 + 2x a75" "$tmp/out/merlinx/device.conf" || fail "cores"
-for kv in soc_vendor:mediatek machine:MT6768 boot:lk-chain bootimg_version:2 bootimg_pagesize:2048 bootimg_os_version:; do
+for kv in soc_vendor:mediatek machine:MT6768 boot:lk-chain bootimg_version:2 bootimg_pagesize:2048 bootimg_os_version: gpu:mali root_size: payload_max:; do
 	grep -q "$(printf '\t%s\t%s$' "${kv%%:*}" "${kv#*:}")" "$tmp/out/merlinx/device.conf" || fail "device.conf ${kv%%:*}"
 done
 grep -q "^# bootimg_os_version:" "$tmp/out/merlinx/device.conf" || fail "no comment on the empty bootimg_os_version"
