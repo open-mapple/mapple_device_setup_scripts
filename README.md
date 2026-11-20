@@ -26,9 +26,15 @@ python3 bringup.py spaced \
     --project 21690 --title "realme 8i" --maintainer you --out out
 ```
 
-Needs Python 3 and `dtc` (only to read the phone's own tree). `--fdt` is `/sys/firmware/fdt` and `--gpt` the first blocks of the
-disk, both with serials and GUIDs masked; without them the memory map, the framebuffer and the partition room are gaps, and the
-brief says which command pulls them.
+Needs Python 3 and `dtc`, which only reads the phone's own tree:
+
+```sh
+brew install dtc                                  # macOS
+sudo apt install device-tree-compiler python3     # Debian, Ubuntu; other Linux: the packages are dtc (or device-tree-compiler) and python3
+```
+
+Without `--fdt` and `--gpt` the memory map, the framebuffer and the partition room are gaps, and the brief says which command
+pulls them.
 
 MediaTek only. If the trees are Qualcomm's or any other vendor's (a `TARGET_BOARD_PLATFORM` such as `sm6150`, `CONFIG_ARCH_QCOM`,
 a `qcom,` root compatible in `--fdt`), the run stops and writes nothing; SM7150 phones belong to the Qualcomm line
@@ -59,6 +65,50 @@ required value and names it.
 The trees do not say everything. LK's reservations, framebuffer and panel come from the phone's own tree; where Android placed
 its run-time pools only `/proc/iomem` says; registers as LK leaves them, SSPM and DVFS tables, calibration and rail values need
 a probe. These are listed, not guessed.
+
+## Getting the inputs
+
+The source trees: clone them side by side in one folder, for example LineageOS's
+`android_device_<brand>_<codename>` and `android_device_<brand>_<soc>-common`, and the vendor's kernel source (LineageOS's
+`android_kernel_<brand>_<soc>`, or the OEM's open-source release). Only the dts and the configs are read, so a kernel can be cloned thin:
+
+```sh
+git clone --depth 1 --filter=blob:none --sparse URL kernel
+git -C kernel sparse-checkout set arch/arm64/boot/dts arch/arm64/configs include
+```
+
+The phone's own files, over adb with the phone rooted and booted into Android. They hold your phone's serial and disk
+identifiers: mask them before you share anything.
+
+```sh
+# --fdt: the device tree LK hands to Android's kernel
+adb exec-out su -c 'cat /sys/firmware/fdt' > live.dtb
+adb shell getprop ro.serialno        # then replace every copy of the serial with X's of the same length:
+python3 -c 'import sys; b = open("live.dtb", "rb").read(); s = sys.argv[1].encode(); open("live.dtb", "wb").write(b.replace(s, b"X" * len(s)))' SERIAL
+dtc -I dtb -O dts -q live.dtb | grep -i -e serial -e imei        # should show nothing of yours
+
+# --gpt, eMMC: the first 32 KiB of the disk
+adb exec-out su -c 'dd if=/dev/block/mmcblk0 bs=4096 count=8 2>/dev/null' > gpt.bin
+
+# --gpt, UFS: the disk (LUN) that holds the Android partitions, then its first 32 KiB
+adb shell su -c 'readlink -f /dev/block/by-name/super'           # /dev/block/sdc47 means the disk is sdc
+adb exec-out su -c 'dd if=/dev/block/sdc bs=4096 count=8 2>/dev/null' > gpt.bin
+```
+
+Then zero the disk GUID and each partition's own GUID in `gpt.bin` (the names and ranges stay):
+
+```sh
+python3 - <<'EOF'
+b = bytearray(open("gpt.bin", "rb").read())
+bs = 4096 if b[4096:4104] == b"EFI PART" else 512
+b[bs + 56:bs + 72] = bytes(16)
+lba, n, size = (int.from_bytes(b[bs + o:bs + o + w], "little") for o, w in ((72, 8), (80, 4), (84, 4)))
+for i in range(n):
+    o = lba * bs + i * size + 16
+    b[o:o + 16] = bytes(16)
+open("gpt.bin", "wb").write(b)
+EOF
+```
 
 ## Proof
 
