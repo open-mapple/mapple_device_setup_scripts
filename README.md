@@ -37,11 +37,16 @@ pick with `--overlay FILE` (repeatable) or `--project NAME`.
 
 | out | what |
 | --- | --- |
-| `<name>/device.conf`, `configs/`, `boot-args.txt` | the device repository's skeleton: every status `missing` with what was found |
+| `<name>/device.conf`, `configs/`, `boot-args.txt` | the device repository's skeleton: every status `missing` with what was found; `soc_vendor`, `machine`, `boot` and the `bootimg_*` header as the trees give them |
+| `<name>/adt.py` | the phone's values for the ADT builder (RAM, framebuffer, name, `ABOUT`, an empty `devices()`) |
 | `adt-input.conf` | the numbers the device-tree builder needs: RAM, interrupt controller, timer, framebuffer, block bases |
 | `report.md` | for each fact, which of our files name it; what nothing of ours names |
 | `BRIEF.md` | facts, gaps, next steps and the read-only phone commands that settle the rest |
 | `facts.json` | the same, for diffing |
+
+A value the trees do not give (the ADT's `ECID` and `DISPLAY_GAMUT`, the boot image's Android version and patch level, the RAM and
+framebuffer without `--fdt`) is left empty, with a one-line comment above it saying what goes there. The build stops on an empty
+required value and names it.
 
 The trees do not say everything. LK's reservations, framebuffer and panel come from the phone's own tree; where Android placed
 its run-time pools only `/proc/iomem` says; registers as LK leaves them, SSPM and DVFS tables, calibration and rail values need

@@ -17,8 +17,17 @@ grep -q "^Overlay: merlin.dts" "$tmp/log" || fail "overlay"
 grep -q "^SoC: mt6768, from TARGET_BOARD_PLATFORM" "$tmp/out/BRIEF.md" || fail "SoC missing from BRIEF.md"
 grep -q "$(printf '\tsoc\tmt6768$')" "$tmp/out/merlinx/device.conf" || fail "device.conf soc"
 grep -q "6x a55 + 2x a75" "$tmp/out/merlinx/device.conf" || fail "cores"
+for kv in soc_vendor:mediatek machine:MT6768 boot:lk-chain bootimg_version:2 bootimg_pagesize:2048 bootimg_os_version:; do
+	grep -q "$(printf '\t%s\t%s$' "${kv%%:*}" "${kv#*:}")" "$tmp/out/merlinx/device.conf" || fail "device.conf ${kv%%:*}"
+done
+grep -q "^# bootimg_os_version:" "$tmp/out/merlinx/device.conf" || fail "no comment on the empty bootimg_os_version"
+# no --fdt here: RAM and the framebuffer are not in the trees, so they stay empty under a comment
+grep -q "^RAM = None" "$tmp/out/merlinx/adt.py" && grep -q "^FB = None" "$tmp/out/merlinx/adt.py" && grep -q "^ECID = None" "$tmp/out/merlinx/adt.py" ||
+	fail "adt.py: empty values"
+grep -q "^PRODUCT_NAME = 'Redmi Note 9'" "$tmp/out/merlinx/adt.py" || fail "adt.py PRODUCT_NAME"
 ! grep -rqi "mt6781" "$tmp/out" || fail "mt6781 in the output"
 echo "match                mt6768 from the common tree's TARGET_BOARD_PLATFORM, overlay merlin, 6x A55 + 2x A75, no mt6781"
+echo "match                device.conf soc_vendor, machine, boot and the boot image header; adt.py with what it could not read left empty"
 
 # the device tree alone: nothing names the SoC any more
 mkdir "$tmp/alone"

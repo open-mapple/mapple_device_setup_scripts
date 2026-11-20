@@ -5,16 +5,22 @@ Expected values are written here by hand from FACTS.md, mkadt.py's SPACED_* cons
 is stated; nothing is read back from the script's own output. Exit 1 on an unexplained difference.
 Usage: check.py OUT_DIR
 """
+import importlib.util
 import json
 import os
 import re
 import sys
+
+sys.dont_write_bytecode = True
 
 out = sys.argv[1]
 J = json.load(open(os.path.join(out, "facts.json")))
 F = J["facts"]
 conf = open(os.path.join(out, "spaced", "device.conf")).read()
 adt = open(os.path.join(out, "adt-input.conf")).read()
+spec = importlib.util.spec_from_file_location("gen_adt", os.path.join(out, "spaced", "adt.py"))
+devpy = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(devpy)
 MiB = 2 ** 20
 
 
@@ -120,7 +126,26 @@ C = [
     ("device.conf soc", "real device.conf", conf_val("soc"), "mt6781", "eq"),
     ("device.conf defconfig", "real device.conf", conf_val("defconfig"), "spaced_defconfig", "eq"),
     ("device.conf firmware", "real device.conf", conf_val("firmware"), "pull-firmware.sh", "eq"),
-    ("device.conf adt flags", "real device.conf (--spaced --ufs --audio --torch)", conf_val("adt"), "--spaced --ufs --audio --torch", "eq"),
+    ("device.conf adt flags", "real device.conf (--ufs --audio --torch)", conf_val("adt"), "--ufs --audio --torch", "eq"),
+    ("device.conf soc_vendor", "real device.conf", conf_val("soc_vendor"), "mediatek", "eq"),
+    ("device.conf machine", "real device.conf", conf_val("machine"), "MT6781", "eq"),
+    ("device.conf boot", "real device.conf", conf_val("boot"), "lk-chain", "eq"),
+    ("boot image header", "BoardConfig.mk: version 2, page 2048, base 0x40078000, offsets 0x8000 0x07c08000 0x0bc08000 0x0bc08000",
+     [conf_val("bootimg_" + k) for k in ("version", "pagesize", "base", "kernel_offset", "ramdisk_offset", "tags_offset", "dtb_offset")],
+     ["2", "2048", "0x40078000", "0x00008000", "0x07c08000", "0x0bc08000", "0x0bc08000"], "eq"),
+    ("boot image keys left empty", "no tree states them: each is empty under its comment",
+     [(k, conf_val("bootimg_" + k), ("# bootimg_" + k + ":") in conf) for k in ("os_version", "os_patch_level", "kernel")],
+     [(k, "", True) for k in ("os_version", "os_patch_level", "kernel")], "eq"),
+    ("adt.py RAM", "real adt.py RAM", devpy.RAM, (0xc0000000, 0x13e000000 - 0xc0000000), "eq"),
+    ("adt.py FB", "real adt.py FB", devpy.FB, dict(base=0x771b0000, width=1080, height=2412, stride=4320, size=0x9f0000), "eq"),
+    ("adt.py PRODUCT_NAME", "real adt.py", devpy.PRODUCT_NAME, "realme 8i", "eq"),
+    ("adt.py ABOUT serial, region", "real adt.py", (devpy.ABOUT["serial"], devpy.ABOUT["region"]), ("MAPPLE0000000000", ""), "eq"),
+    ("adt.py ABOUT model", "real adt.py RMX3151",
+     devpy.ABOUT["model"], ("known", "the tree's PRODUCT_MODEL is RMX3286; the phone's model number is RMX3151: check it on the phone"),
+     "known"),
+    ("adt.py ECID, DISPLAY_GAMUT", "real adt.py has 0x5350414300000001 and 'sRGB': nothing in the trees says; left empty",
+     (devpy.ECID, devpy.DISPLAY_GAMUT), (None, ""), "eq"),
+    ("adt.py devices()", "real adt.py has the hand-written /arm-io nodes: left empty", devpy.devices(None, None, None, None, None, None), [], "eq"),
     ("cmdline cpus", "real device.conf cmdline", cmdline_has("cpus=8"), True, "eq"),
     ("cmdline UFS LUN", "real device.conf cmdline", cmdline_has("mp_ufslun=2"), True, "eq"),
     ("cmdline UFS root", "real device.conf cmdline", cmdline_has("mp_ufsroot=xnusys"), True, "eq"),
@@ -138,6 +163,7 @@ NOT_DERIVABLE = [
     ("every cmdline knob but cpus/LUN/root (mp_gpu, mp_therm, ...)", "run-proven choices in device.conf, not facts of the trees"),
     ("device.conf status states (works/partial)", "only a run says that; the script writes missing"),
     ("maintainer", "an input (--maintainer)"),
+    ("ECID, DISPLAY_GAMUT, the /arm-io nodes, the boot image's Android version and patch level", "empty in adt.py and device.conf under a comment; the porter fills them"),
 ]
 
 
