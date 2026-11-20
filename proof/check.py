@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare a regenerated spaced (facts.json, device.conf, adt-input.conf) with what the real repos and FACTS say.
+"""Compare a regenerated spaced (facts.json, device.conf, adt.py) with what the real repos and FACTS say.
 
 Expected values are written here by hand from FACTS.md, mkadt.py's SPACED_* constants and the real device.conf, with the place each
 is stated; nothing is read back from the script's own output. Exit 1 on an unexplained difference.
@@ -17,7 +17,6 @@ out = sys.argv[1]
 J = json.load(open(os.path.join(out, "facts.json")))
 F = J["facts"]
 conf = open(os.path.join(out, "spaced", "device.conf")).read()
-adt = open(os.path.join(out, "adt-input.conf")).read()
 spec = importlib.util.spec_from_file_location("gen_adt", os.path.join(out, "spaced", "adt.py"))
 devpy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(devpy)
@@ -28,9 +27,15 @@ def v(a, k):
     return F.get(a, {}).get(k, {}).get("value")
 
 
-def adt_val(k):
-    m = re.search(r"^%s\t([^\t#]+)" % k, adt, re.M)
-    return m[1].strip() if m else None
+def base(a, k):
+    f = v(a, k)
+    return f and f.get("base")
+
+
+def ufs():
+    """The controller's base and its size rounded up to 16 KiB, as the ADT maps it."""
+    f = v("storage", "controller")
+    return "%s %s" % (f["base"], hex((int(f["size"], 16) + 0x3fff) & ~0x3fff))
 
 
 def conf_val(k):
@@ -69,15 +74,15 @@ C = [
     ("DRAM end", "FACTS RAM (0x13fffffff)", v("memory", "dram") and hx(v("memory", "dram")["end"]), 0x140000000, "eq"),
     ("reserved MB", "FACTS RAM (442 MB)", v("memory", "reserved_mib"), 442, "eq"),
     ("free ranges", "FACTS RAM table (13 rows)", free_incl(), FREE, "eq"),
-    ("largest free range", "FACTS RAM (2048 MB at 0xc0000000)", adt_val("PHYS_BASE"), "0xc0000000", "eq"),
-    ("XNU RAM size", "mkadt SPACED_MEM_SIZE", adt_val("MEM_SIZE"), hex(0x13e000000 - 0xc0000000), "eq"),
+    ("largest free range", "FACTS RAM (2048 MB at 0xc0000000)", v("memory", "xnu_phys_base"), "0xc0000000", "eq"),
+    ("XNU RAM size", "mkadt SPACED_MEM_SIZE", v("memory", "xnu_mem_size"), hex(0x13e000000 - 0xc0000000), "eq"),
     ("ramoops", "FACTS pstore", v("memory", "ramoops"), {"base": "0x4d010000", "size": "0xe0000"}, "eq"),
-    ("LK framebuffer", "FACTS Framebuffer, mkadt SPACED_FB", adt_val("FB"), "0x771b0000", "eq"),
+    ("LK framebuffer", "FACTS Framebuffer, mkadt SPACED_FB", base("memory", "lk_fb"), "0x771b0000", "eq"),
     ("LK vram", "FACTS Framebuffer (0x1e50000)", v("memory", "lk_fb") and v("memory", "lk_fb")["vram"], "0x1e50000", "eq"),
     ("panel name", "FACTS Framebuffer (ili7807s_fhdp_dsi_vdo_boe_boe)", v("display", "lcm"), "ili7807s_fhdp_dsi_vdo_boe_boe", "prefix"),
     ("panel size", "FACTS Framebuffer (1080x2412)", v("display", "size"), [1080, 2412], "eq"),
-    ("FB stride", "mkadt SPACED_FB_STRIDE", adt_val("FB_STRIDE"), str(FB_STRIDE), "eq"),
-    ("FB size", "mkadt SPACED_FB_SIZE", adt_val("FB_SIZE"), hex((FB_STRIDE * 2412 + 0x3fff) & ~0x3fff), "eq"),
+    ("FB stride", "mkadt SPACED_FB_STRIDE", str(devpy.FB["stride"]), str(FB_STRIDE), "eq"),
+    ("FB size", "mkadt SPACED_FB_SIZE", hex(devpy.FB["size"]), hex((FB_STRIDE * 2412 + 0x3fff) & ~0x3fff), "eq"),
     ("storage type", "FACTS Storage", v("storage", "type"), "ufs", "eq"),
     ("UFS LUN", "FACTS Storage (sdc), device.conf mp_ufslun=2", v("storage", "system_lun"), 2, "eq"),
     ("block size", "FACTS Storage", v("storage", "block_size"), 4096, "eq"),
@@ -90,27 +95,27 @@ C = [
     ("xnusys range", "FACTS smoke staging (9848576..15615991)", part("xnusys") and (part("xnusys")["first"], part("xnusys")["last"]),
      (9848576, 15615991), "eq"),
     ("super bytes", "FACTS Storage (9.5 GB)", v("storage", "super_bytes"), 10200547328, "eq"),
-    ("UFS base", "mkadt MAPPLE_UFS", adt_val("UFS"), "0x11270000 0x4000", "eq"),
+    ("UFS base", "mkadt MAPPLE_UFS", ufs(), "0x11270000 0x4000", "eq"),
     ("UFS DT size", "FACTS UFS (0x2300)", v("storage", "controller") and v("storage", "controller")["size"], "0x2300", "eq"),
     ("cores", "FACTS Cores (6x A55 + 2 big; the DT says A75)", [x["core"] for x in v("soc", "cores") or []],
      ["a55"] * 6 + ["a75"] * 2, "eq"),
     ("big cores' real part", "FACTS Cores (A76)", v("soc", "cpu_variant_android"), "cortex-a76", "eq"),
-    ("GICD", "mkadt MAPPLE_GICD", adt_val("GICD"), "0xc000000 0x40000", "eq"),
-    ("GICR", "mkadt MAPPLE_GICR", adt_val("GICR"), "0xc040000 0x200000", "eq"),
-    ("timebase", "mkadt MAPPLE_TIMEBASE", adt_val("TIMEBASE"), "13000000", "eq"),
-    ("virtual timer INTID", "mkadt MAPPLE_VTIMER_INTID", adt_val("VTIMER_INTID"), "27", "eq"),
+    ("GICD", "mkadt MAPPLE_GICD", " ".join([base("soc", "gicd"), v("soc", "gicd")["size"]]), "0xc000000 0x40000", "eq"),
+    ("GICR", "mkadt MAPPLE_GICR", " ".join([base("soc", "gicr"), v("soc", "gicr")["size"]]), "0xc040000 0x200000", "eq"),
+    ("timebase", "mkadt MAPPLE_TIMEBASE", str(v("soc", "timebase_hz")), "13000000", "eq"),
+    ("virtual timer INTID", "mkadt MAPPLE_VTIMER_INTID", str(v("soc", "vtimer_intid")), "27", "eq"),
     ("TOPRGU", "FACTS (mtkloader SOC_PROBE)", v("soc", "toprgu") and v("soc", "toprgu")["base"], "0x10007000", "eq"),
-    ("OVL0", "FACTS Framebuffer (0x14005000)", adt_val("OVL0"), "0x14005000", "eq"),
+    ("OVL0", "FACTS Framebuffer (0x14005000)", base("display", "ovl0"), "0x14005000", "eq"),
     ("touch chip", "FACTS Touch (ILI7807S)", v("touch", "chip"), "ILI7807S", "contains"),
     ("touch bus", "FACTS Touch (spi4, 0x11014000)", v("touch", "bus") and v("touch", "bus")["base"], "0x11014000", "eq"),
     ("touch irq", "FACTS Touch (EINT 12)", v("touch", "pins") and v("touch", "pins")["irq_gpio"], 12, "eq"),
     ("touch reset", "FACTS Touch (GPIO121)", v("touch", "pins") and v("touch", "pins")["reset_gpio"], 121, "eq"),
-    ("keypad", "FACTS Touch (mtk-kpd 10010000)", adt_val("KEYPAD"), "0x10010000", "eq"),
-    ("PMIC wrapper", "device.conf buttons / mtkpwrap.h", adt_val("PWRAP"), "0x1000d000", "eq"),
+    ("keypad", "FACTS Touch (mtk-kpd 10010000)", base("keys", "keypad"), "0x10010000", "eq"),
+    ("PMIC wrapper", "device.conf buttons / mtkpwrap.h", base("pmic", "pwrap"), "0x1000d000", "eq"),
     ("PMIC register layout", "FACTS smoke 5 (MT6358 layout)", v("pmic", "chip") and v("pmic", "chip")["defconfig"], ["MT6358"], "eq"),
     ("PMIC part named", "FACTS smoke 2 (MT6366)", "mt6366-sound" in (v("pmic", "parts_named") or []), True, "eq"),
     ("GPU", "device.conf (Mali-G57, Valhall)", v("gpu", "mali") and v("gpu", "mali")["compat"], ["arm,mali-valhall"], "eq"),
-    ("mfgcfg", "README (0x13fbf000)", adt_val("MFGCFG"), "0x13fbf000", "eq"),
+    ("mfgcfg", "README (0x13fbf000)", base("gpu", "mfgcfg"), "0x13fbf000", "eq"),
     ("Wi-Fi/BT chip", "device.conf (MT6631)", v("wifi_bt", "chip"), ["MT6631"], "eq"),
     ("BTIF", "device.conf (BTIF)", v("wifi_bt", "btif") and v("wifi_bt", "btif")["base"], "0x1100c000", "eq"),
     ("amplifiers", "FACTS audio (AW87319 on 3-0058, sia81xx on 3-0028)",

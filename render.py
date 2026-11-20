@@ -1,4 +1,4 @@
-"""Facts -> the device repo skeleton, adt-input.conf, report.md, BRIEF.md, facts.json."""
+"""Facts -> the device repo skeleton, report.md, BRIEF.md, facts.json."""
 import json
 import os
 import re
@@ -31,58 +31,6 @@ def short(v, n=60):
 
 def get(c, area, key):
     return c.facts.get(area, {}).get(key, {}).get("value")
-
-
-def adt_input(c):
-    L = []
-
-    def put(k, v, src):
-        if v is not None:
-            L.append("%s\t%s\t# %s" % (k, v, src))
-    F = lambda a, k: c.facts.get(a, {}).get(k)
-    for k, a, key in (("PHYS_BASE", "memory", "xnu_phys_base"),):
-        f = F(a, key)
-        put(k, f and f["value"], f and f["src"])
-    f = F("memory", "xnu_mem_size")
-    put("MEM_SIZE", f and f["value"], f and f["src"])
-    for k, key in (("GICD", "gicd"), ("GICR", "gicr")):
-        f = F("soc", key)
-        if f:
-            put(k, "%s %s" % (f["value"]["base"], f["value"]["size"]), f["src"])
-    for k, key in (("TIMEBASE", "timebase_hz"), ("VTIMER_INTID", "vtimer_intid")):
-        f = F("soc", key)
-        put(k, f and f["value"], f and f["src"])
-    f = F("soc", "uart")
-    if f:
-        put("UART", "%s %s" % (f["value"]["base"], f["value"]["size"]), f["src"])
-    cores = get(c, "soc", "cores")
-    if cores:
-        put("CORES", " ".join("%s:%s" % (x["mpidr"], x["core"]) for x in cores), "dts: /cpus (MPIDR:part, boot core first)")
-    f = F("memory", "lk_fb")
-    sz = get(c, "display", "size")
-    if f and sz:
-        w, h = sz
-        stride = w * 4
-        put("FB", f["value"]["base"], f["src"])
-        put("FB_W", w, "defconfig CONFIG_LCM_WIDTH")
-        put("FB_H", h, "defconfig CONFIG_LCM_HEIGHT")
-        put("FB_STRIDE", stride, "width x 4: assumes 32 bpp and no row padding; the LK probe confirms the pitch")
-        put("FB_SIZE", hex((stride * h + 0x3fff) & ~0x3fff), "stride x height rounded to 16 KiB")
-    f = F("storage", "controller")
-    if f:
-        base = int(f["value"]["base"], 16)
-        put("UFS" if get(c, "storage", "type") == "ufs" else "MMC", "%s %s" % (f["value"]["base"], hex((int(f["value"]["size"], 16) + 0x3fff) & ~0x3fff)),
-            f["src"] + " (size rounded to 16 KiB)")
-    for k, a, key in (("OVL0", "display", "ovl0"), ("MFGCFG", "gpu", "mfgcfg"), ("SPI_TOUCH", "touch", "bus"),
-                      ("KEYPAD", "keys", "keypad"), ("PWRAP", "pmic", "pwrap"), ("BTIF", "wifi_bt", "btif"),
-                      ("CONSYS", "wifi_bt", "consys"), ("SCP", "sensor_hub", "scp"), ("TOPRGU", "soc", "toprgu")):
-        f = F(a, key)
-        if f and f["value"].get("base"):
-            put(k, f["value"]["base"], f["src"])
-    f = F("memory", "ramoops")
-    if f:
-        put("RAMOOPS", "%s %s" % (f["value"]["base"], f["value"]["size"]), f["src"])
-    return "# facts the ADT builder needs, one per line: key, value, where it was read\n" + "\n".join(L) + "\n"
 
 
 def assigned(c, name):
@@ -290,7 +238,7 @@ def write(c, out):
     files = {os.path.join(c.name, "device.conf"): device_conf(c), os.path.join(c.name, "configs", c.name + "_defconfig"): d,
              os.path.join(c.name, "configs", c.name + ".config"): f, os.path.join(c.name, "boot-args.txt"): boot_args(c),
              os.path.join(c.name, "adt.py"): adt_py(c),
-             "adt-input.conf": adt_input(c), "report.md": report(c, rows), "BRIEF.md": brief(c, rows),
+             "report.md": report(c, rows), "BRIEF.md": brief(c, rows),
              "facts.json": json.dumps({"facts": c.facts, "gaps": c.gaps, "match": rows}, indent=1, sort_keys=True) + "\n"}
     for p, text in files.items():
         open(os.path.join(out, p), "w").write(text)
