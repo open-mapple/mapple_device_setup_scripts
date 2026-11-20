@@ -16,14 +16,17 @@ from ctx import Ctx  # noqa: E402
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("name", help="the device's codename (spaced)")
-    p.add_argument("--android-device", required=True, help="the Android device tree (BoardConfig.mk, rootdir/, proprietary-files.txt)")
-    p.add_argument("--android-kernel", required=True, help="the Android kernel tree (arch/arm64/boot/dts, configs)")
+    p.add_argument("--android-device", required=True, help="the phone's Android device tree SOURCE, the repository android_device_<brand>_<codename> (it has BoardConfig.mk and "
+                   "device.mk), with the inherited android_device_<brand>_<soc>-common trees beside it. Source trees, not a firmware dump")
+    p.add_argument("--android-kernel", required=True, help="the vendor's Android kernel SOURCE for the phone (it has arch/arm64/boot/dts and arch/arm64/configs). "
+                   "A source tree, not a firmware dump")
     p.add_argument("--soc", help="the MediaTek SoC (mt6768); without it the trees must name it, and the run stops if they do not")
     p.add_argument("--project", help="the vendor's project name or number in the dts overlay's file name")
     p.add_argument("--overlay", action="append", default=[], help="the board's dts overlay file in the kernel's mediatek dts directory (repeatable)")
     p.add_argument("--fdt", help="the phone's own device tree (/sys/firmware/fdt), identifiers masked")
     p.add_argument("--gpt", help="the phone's GPT (first 34 blocks of the disk), identifiers masked")
-    p.add_argument("--ours", action="append", default=[], help="a tree of our drivers to compare against (repeatable)")
+    p.add_argument("--ours", action="append", default=[], help="Open Mapple's driver sources, for the match report (optional, repeatable): folders of a repo sync of our manifest, "
+                   "such as kernel/mediatek/mt6781 and mapple/loader")
     p.add_argument("--title")
     p.add_argument("--maintainer", default="unmaintained")
     p.add_argument("--out", default="out")

@@ -1,12 +1,21 @@
 # mapple_device_setup_scripts
 
 Reads a MediaTek phone's open Android trees and does the deterministic part of a port, with no guessing: it writes a device
-repository skeleton, a match report against our drivers and a porting brief. Facts only: every line says where it was read
+repository skeleton, a match report against Open Mapple's drivers and a porting brief. Facts only: every line says where it was read
 (`file:line`), and nothing of the trees' files, no firmware and no vendor file is copied. No network, no AI; the same inputs give
 the same bytes.
 
 The method follows HakiOS's `docs/mtk-porting.md` ("Read these from your phone first"), which this automates for the parts the
 sources can answer.
+
+It reads source trees, not a firmware dump: nothing is unpacked from the phone's images, and no firmware or vendor binary is needed.
+
+| option | what to pass |
+| --- | --- |
+| `--android-device` | the phone's Android device tree source: the repository `android_device_<brand>_<codename>` (it has `BoardConfig.mk` and `device.mk`), with the trees it inherits, `android_device_<brand>_<soc>-common`, as folders beside it |
+| `--android-kernel` | the vendor's kernel source for the phone (it has `arch/arm64/boot/dts` and `arch/arm64/configs`) |
+| `--ours` (optional, repeatable) | Open Mapple's driver sources, for the match report: folders of a repo sync of our manifest (`repo init -u https://github.com/open-mapple/manifest -b main && repo sync`), such as `kernel/mediatek/mt6781` and `mapple/loader` |
+| `--fdt`, `--gpt` (optional) | the phone's own device tree and partition table, pulled with adb, identifiers masked |
 
 ```sh
 python3 bringup.py spaced \
