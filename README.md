@@ -26,15 +26,8 @@ python3 bringup.py spaced \
     --project 21690 --title "realme 8i" --maintainer you --out out
 ```
 
-Needs Python 3 and `dtc`, which only reads the phone's own tree:
-
-```sh
-brew install dtc                                  # macOS
-sudo apt install device-tree-compiler python3     # Debian, Ubuntu; other Linux: the packages are dtc (or device-tree-compiler) and python3
-```
-
-Without `--fdt` and `--gpt` the memory map, the framebuffer and the partition room are gaps, and the brief says which command
-pulls them.
+Python 3 and `dtc` are needed (see Install). Without `--fdt` and `--gpt` the memory map, the framebuffer and the partition room are gaps,
+and the brief says which command pulls them.
 
 MediaTek only. If the trees are Qualcomm's or any other vendor's (a `TARGET_BOARD_PLATFORM` such as `sm6150`, `CONFIG_ARCH_QCOM`,
 a `qcom,` root compatible in `--fdt`), the run stops and writes nothing; SM7150 phones belong to the Qualcomm line
@@ -44,7 +37,12 @@ The script stops rather than guesses. It prints the SoC and where it read it at 
 It looks, in this order, at `TARGET_BOARD_PLATFORM` (the device tree's makefiles and the `include` / `inherit-product` lines into
 the common trees beside it, such as `android_device_<vendor>_<soc>-common`), the kernel config (`CONFIG_MACH_MT*`, else
 `CONFIG_MTK_PLATFORM`), the root compatible of `--fdt`, and the SoC dts if the kernel tree has only one. Sources that disagree are
-listed and the run stops; so does a run where none answers. `--soc mt6768` settles either.
+listed and the run stops; so does a run where none answers. `--soc mt6768` settles either, and the run warns if the trees
+say another SoC and stops if the kernel has no dts for it.
+
+Every input is checked before anything is read, and each stop names the option: a device or kernel folder that is not source
+(a firmware dump), a missing `--fdt`, `--gpt` or `--ours`, a file that is not a device tree or a GPT, `dtc` not installed, a kernel
+without the config the device names. At the end of a run, the values left empty for you to fill are listed.
 
 The board's dts overlay is the file `--overlay` names, or the ones whose names contain `--project`; with neither, the one overlay the
 kernel config builds (`CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES`). If it builds several, they are listed and the run stops:
@@ -65,6 +63,21 @@ required value and names it.
 The trees do not say everything. LK's reservations, framebuffer and panel come from the phone's own tree; where Android placed
 its run-time pools only `/proc/iomem` says; registers as LK leaves them, SSPM and DVFS tables, calibration and rail values need
 a probe. These are listed, not guessed.
+
+## Install
+
+Python 3, `dtc` (it only reads the phone's own tree), `git`, and `adb` for the phone's files:
+
+```sh
+brew install dtc android-platform-tools                   # macOS
+sudo apt install python3 device-tree-compiler adb git     # Debian, Ubuntu
+sudo dnf install python3 dtc android-tools git            # Fedora
+sudo pacman -S python dtc android-tools git               # Arch
+```
+
+On Linux, if `adb devices` lists the phone as "no permissions", install the udev rules (Debian, Ubuntu:
+`sudo apt install android-sdk-platform-tools-common`), replug the phone and accept the debugging prompt on its screen. The phone
+needs root (`adb shell su -c id` must work) only for the two files in the next section. Nothing else here runs on the phone.
 
 ## Getting the inputs
 
