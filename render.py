@@ -231,6 +231,15 @@ def brief(c, rows):
     return "\n".join(L) + "\n"
 
 
+def empty_values(c, out):
+    """[(file, key)] of the values the porter has to fill: empty lines in device.conf, None or '' in adt.py."""
+    conf = open(os.path.join(out, c.name, "device.conf")).read()
+    adt = open(os.path.join(out, c.name, "adt.py")).read()
+    return [("device.conf", k) for k in re.findall(r"^\t(\w+)\t$", conf, re.M)] + \
+           [("adt.py", k) for k in re.findall(r"^(\w+) = (?:None|'')$", adt, re.M)] + \
+           [("adt.py", "ABOUT model")] * ("model=''" in adt)
+
+
 def write(c, out):
     os.makedirs(os.path.join(out, c.name, "configs"), exist_ok=True)
     d, f = configs(c)

@@ -36,6 +36,10 @@ def main(argv=None):
         area.run(c)
     render.write(c, a.out)
     n = sum(len(v) for v in c.facts.values())
+    empty = render.empty_values(c, a.out)
+    if empty:
+        print("Empty, for you to fill (each has a comment; mka stops on an empty required one): " +
+              "; ".join("%s: %s" % (f, ", ".join(k for g, k in empty if g == f)) for f in dict.fromkeys(f for f, _ in empty)))
     print("%s: %d facts, %d gaps, %d probes -> %s" % (a.name, n, len(c.gaps), len(c.probes), a.out))
 
 
