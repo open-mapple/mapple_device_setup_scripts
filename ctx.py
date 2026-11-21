@@ -2,7 +2,9 @@
 import glob
 import os
 import re
+import shutil
 import struct
+import sys
 import tempfile
 
 import dts
@@ -11,7 +13,7 @@ import dts
 class Ctx:
     def __init__(self, name, android_dir, kernel_dir, project=None, fdt=None, gpt=None, ours=(), soc_layer=None,
                  title=None, maintainer="unmaintained", soc=None, overlays=()):
-        check_inputs(android_dir, kernel_dir)
+        check_inputs(android_dir, kernel_dir, fdt, gpt, ours)
         self.name, self.android, self.kernel = name, android_dir, kernel_dir
         self.ours, self.soc_layer, self.maintainer = list(ours), soc_layer, maintainer
         self.facts, self.gaps, self.probes = {}, [], []
@@ -19,7 +21,12 @@ class Ctx:
         self.assigns = read_mk_tree(android_dir)
         self.dtsdir = os.path.join(kernel_dir, "arch/arm64/boot/dts/mediatek")
         self.kcfgs = find_kconfigs(kernel_dir, name, self.assigns)
-        self.defconfig_path = self.kcfgs[0] if self.kcfgs else None
+        if not self.kcfgs:
+            want = sorted({t for n, v, _ in self.assigns if n == "TARGET_KERNEL_CONFIG" for t in v.split()})
+            raise SystemExit("mapple-bringup: no kernel config found in --android-kernel. The device names %s (TARGET_KERNEL_CONFIG) under "
+                             "arch/arm64/configs and it is not there: is this the kernel for this phone?"
+                             % (" ".join(want) if want else "none, and there is no %s_defconfig" % name))
+        self.defconfig_path = self.kcfgs[0]
         self.sym = {}
         for f in self.kcfgs:
             self.sym.update(dts.defconfig_symbols(f))
@@ -35,6 +42,9 @@ class Ctx:
             self.live.add_file(p)
         self.check_vendor()
         self.soc, self.soc_src, self.soc_also = self.find_soc(soc)
+        if not os.path.isfile(os.path.join(self.dtsdir, self.soc + ".dts")):
+            raise SystemExit("mapple-bringup: SoC %s (%s), but --android-kernel has no arch/arm64/boot/dts/mediatek/%s.dts: the kernel "
+                             "is for another SoC, or the SoC is wrong (--soc)." % (self.soc, self.soc_src, self.soc))
         print("SoC: %s" % self.soc_line())
         self.project, self.overlays = project, list(overlays)
         self.tree = self.load_tree()
@@ -117,10 +127,8 @@ class Ctx:
 
     def find_soc(self, given):
         """(soc, where it was read, where else it was read). Never a default: sources that disagree, or none, stop the run."""
-        if given:
-            if not re.fullmatch(r"mt\d{4}", given.lower()):
-                raise SystemExit("--soc %s: expected a MediaTek SoC name such as mt6768" % given)
-            return given.lower(), "--soc", []
+        if given and not re.fullmatch(r"mt\d{4}", given.lower()):
+            raise SystemExit("mapple-bringup: --soc %s: expected a MediaTek SoC name such as mt6768" % given)
         found, looked = [], []
         for n, v, src in self.assigns:
             if n == "TARGET_BOARD_PLATFORM":
@@ -152,6 +160,10 @@ class Ctx:
         else:
             looked.append("%d SoC dts files in the kernel tree (%s)" % (len(socs), " ".join(s[:-4] for s in socs[:8])))
         names = sorted({s for s, _ in found})
+        if given:
+            if names and given.lower() not in names:
+                print("warning: --soc %s, but the trees say %s (%s)" % (given.lower(), " and ".join(names), found[0][1]), file=sys.stderr)
+            return given.lower(), "--soc", []
         if not found:
             raise SystemExit("mapple-bringup: no source names the SoC (%s). Pass --soc mtNNNN." % "; ".join(looked))
         if len(names) > 1:
@@ -197,8 +209,9 @@ def read_mk(root):
     return out
 
 
-def check_inputs(android, kernel):
-    """Stop, naming the option, when a tree is not source: a firmware dump, a wrong folder."""
+def check_inputs(android, kernel, fdt=None, gpt=None, ours=()):
+    """Stop, naming the option, when an input is not what it should be: a firmware dump, a wrong folder, a file that is not
+    a device tree or a GPT."""
     bad = []
     if not glob.glob(os.path.join(android, "BoardConfig*.mk")) + glob.glob(os.path.join(android, "device.mk")):
         bad.append("--android-device %s: this doesn't look like an Android device tree source (no BoardConfig.mk or device.mk). "
@@ -206,6 +219,26 @@ def check_inputs(android, kernel):
     if not os.path.isdir(os.path.join(kernel, "arch/arm64/boot/dts")):
         bad.append("--android-kernel %s: this doesn't look like an Android kernel source (no arch/arm64/boot/dts). "
                    "Did you pass a firmware dump? Pass the vendor's kernel source for the phone." % kernel)
+    for o in ours:
+        if not os.path.isdir(o):
+            bad.append("--ours %s: no such folder. Pass a folder of a repo sync of Open Mapple's manifest, such as kernel/mediatek/mt6781." % o)
+    if fdt and not os.path.isfile(fdt):
+        bad.append("--fdt %s: no such file. It is /sys/firmware/fdt pulled from the phone (README: Getting the inputs)." % fdt)
+    elif fdt:
+        head = open(fdt, "rb").read(4096)
+        if head[:4] == b"\xd0\x0d\xfe\xed":
+            if not shutil.which("dtc"):
+                bad.append("--fdt is a binary device tree and dtc is not installed: brew install dtc (macOS), "
+                           "sudo apt install device-tree-compiler (Debian, Ubuntu).")
+        elif b"/dts-v1/" not in head:
+            bad.append("--fdt %s is neither a binary device tree (/sys/firmware/fdt) nor a .dts." % fdt)
+    if gpt and not os.path.isfile(gpt):
+        bad.append("--gpt %s: no such file. It is the first blocks of the phone's disk (README: Getting the inputs)." % gpt)
+    elif gpt:
+        head = open(gpt, "rb").read(4104)
+        if b"EFI PART" not in (head[512:520], head[4096:4104]):
+            bad.append("--gpt %s has no GPT header (\"EFI PART\" at byte 512 or 4096): pass the first blocks of the disk that holds "
+                       "the Android partitions (README: Getting the inputs)." % gpt)
     if bad:
         raise SystemExit("mapple-bringup: " + "\n".join(bad))
 

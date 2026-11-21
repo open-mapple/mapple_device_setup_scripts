@@ -44,6 +44,18 @@ grep -q "firmware dump" "$tmp/err" && grep -q "^mapple-bringup: --android-device
 	fail "no clear stop for a firmware dump, or output written"
 echo "match                a firmware dump's folder: stops naming both options, writes nothing"
 
+# inputs that are not what they should be: each named, nothing written
+printf 'junk\n' > "$tmp/junk"
+python3 -I "$here/bringup.py" x --android-device "$dev" --android-kernel "$ker" --fdt "$tmp/junk" --gpt "$tmp/junk" --ours "$tmp/none" \
+	--out "$tmp/o6" >"$tmp/err" 2>&1 && fail "went on with bad --fdt, --gpt and --ours"
+grep -q "^mapple-bringup: --ours" "$tmp/err" && grep -q "^--fdt .* neither a binary device tree" "$tmp/err" && grep -q "^--gpt .*no GPT header" "$tmp/err" &&
+	[ ! -e "$tmp/o6" ] || fail "no clear stop for bad --fdt, --gpt, --ours, or output written"
+python3 -I "$here/bringup.py" x --android-device "$dev" --android-kernel "$ker" --soc mt6799 --out "$tmp/o7" >"$tmp/err" 2>&1 && fail "went on with a SoC the kernel lacks"
+grep -q "has no arch/arm64/boot/dts/mediatek/mt6799.dts" "$tmp/err" && [ ! -e "$tmp/o7" ] || fail "no clear stop for a wrong --soc"
+python3 -I "$here/bringup.py" x --android-device "$dev" --android-kernel "$tmp" --out "$tmp/o8" >"$tmp/err" 2>&1 && fail "went on with no kernel"
+grep -q "^mapple-bringup: --android-kernel" "$tmp/err" && [ ! -e "$tmp/o8" ] || fail "no clear stop for a missing kernel"
+echo "match                bad --fdt, --gpt, --ours, a --soc the kernel lacks, no kernel: each stops with its option named, writes nothing"
+
 # a live tree that says another SoC
 printf '/dts-v1/;\n/ { compatible = "mediatek,mt6785"; };\n' > "$tmp/live.dts"
 run --fdt "$tmp/live.dts" --out "$tmp/o3" >"$tmp/err" 2>&1 && fail "went on with disagreeing sources"
